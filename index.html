@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEURAL LINK TERMINAL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green-primary:   #00aaff;
+      --green-secondary: #0055aa;
+      --green-dim:       #001a3b;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #000;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--green-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Matrix rain canvas ── */
+    #matrix-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      display: block;
+    }
+
+    /* ── Terminal window ── */
+    #terminal-container {
+      position: relative;
+      z-index: 10;
+      width: min(700px, 92vw);
+      height: min(520px, 85vh);
+      background: rgba(0, 0, 0, 0.82);
+      border: 1px solid var(--green-primary);
+      border-radius: 4px;
+      box-shadow:
+        0 0 10px var(--green-primary),
+        0 0 30px rgba(0, 170, 255, 0.25),
+        0 0 60px rgba(0, 170, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Title bar ── */
+    #title-bar {
+      background: var(--green-primary);
+      color: #000;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      letter-spacing: 0.12em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #title-bar .dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    #title-bar .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    /* ── Messages area ── */
+    #messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--green-secondary) transparent;
+    }
+
+    #messages-area::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    #messages-area::-webkit-scrollbar-thumb {
+      background: var(--green-secondary);
+      border-radius: 3px;
+    }
+
+    .message {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .message.user {
+      color: var(--green-primary);
+    }
+
+    .message.bot {
+      color: var(--green-secondary);
+    }
+
+    .message.error {
+      color: #ff3c3c;
+    }
+
+    .message.system {
+      color: #1a4a7a;
+      font-size: 0.8rem;
+    }
+
+    .message.thinking {
+      color: var(--green-secondary);
+    }
+
+    /* Blinking cursor on thinking message */
+    .message.thinking::after {
+      content: ' ▋';
+      animation: blink 0.8s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── Input area ── */
+    #input-area {
+      display: flex;
+      align-items: center;
+      border-top: 1px solid var(--green-dim);
+      padding: 10px 14px;
+      gap: 8px;
+      flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    #input-prompt {
+      color: var(--green-primary);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #user-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--green-primary);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      caret-color: var(--green-primary);
+    }
+
+    #user-input::placeholder {
+      color: var(--green-dim);
+    }
+
+    #user-input:disabled {
+      opacity: 0.5;
+    }
+
+    #send-btn {
+      background: transparent;
+      border: 1px solid var(--green-primary);
+      color: var(--green-primary);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    #send-btn:hover:not(:disabled) {
+      background: var(--green-primary);
+      color: #000;
+    }
+
+    #send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="matrix-canvas"></canvas>
+
+  <div id="terminal-container">
+    <div id="title-bar">
+      <span>NEURAL LINK TERMINAL v2.1</span>
+      <div class="dots">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+
+    <div id="messages-area"></div>
+
+    <div id="input-area">
+      <span id="input-prompt">&gt;&nbsp;</span>
+      <input
+        id="user-input"
+        type="text"
+        placeholder="ENTER MESSAGE..."
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="send-btn">SEND</button>
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // CONFIG
+    // TODO: Replace with your actual n8n webhook URL before deploying.
+    // Enable CORS on the webhook node in n8n (Allow all origins).
+    const WEBHOOK_URL = '/api/chat';
+    // ─────────────────────────────────────────────
+
+    // ── Matrix rain ──────────────────────────────
+    const canvas = document.getElementById('matrix-canvas');
+    const ctx    = canvas.getContext('2d');
+
+    const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const FONT_SIZE = 14;
+
+    let drops = [];
+
+    function initMatrix() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const cols = Math.floor(canvas.width / FONT_SIZE);
+      drops = Array.from({ length: cols }, () => Math.random() * -50);
+    }
+
+    function drawMatrixFrame() {
+      // Faint black overlay creates the fade/trail effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `${FONT_SIZE}px 'Share Tech Mono', monospace`;
+
+      for (let col = 0; col < drops.length; col++) {
+        const char = CHARS[Math.floor(Math.random() * CHARS.length)];
+        const x    = col * FONT_SIZE;
+        const y    = drops[col] * FONT_SIZE;
+
+        // Occasional bright white "leading" character for head effect
+        if (Math.random() > 0.975) {
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.fillStyle = '#0055aa'; // --blue-secondary
+        }
+
+        ctx.fillText(char, x, y);
+
+        // Reset column when it passes the bottom with staggered probability
+        if (y > canvas.height && Math.random() > 0.975) {
+          drops[col] = 0;
+        }
+
+        drops[col] += 1;
+      }
+    }
+
+    function startMatrix() {
+      initMatrix();
+      setInterval(drawMatrixFrame, 50);
+    }
+
+    window.addEventListener('resize', initMatrix);
+
+    // ── Messages ─────────────────────────────────
+    const messagesArea = document.getElementById('messages-area');
+    const userInput    = document.getElementById('user-input');
+    const sendBtn      = document.getElementById('send-btn');
+
+    function appendMessage(text, type = 'system') {
+      const el = document.createElement('div');
+      el.classList.add('message', type);
+
+      const prefixes = {
+        user:     '> YOU: ',
+        bot:      '[SYSTEM]: ',
+        error:    '[ERROR]: ',
+        system:   '',
+        thinking: '[SYSTEM]: ',
+      };
+
+      el.textContent = (prefixes[type] ?? '') + text;
+      messagesArea.appendChild(el);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      return el;
+    }
+
+    // ── n8n response parser ───────────────────────
+    function parseN8nResponse(data) {
+      if (Array.isArray(data)) {
+        data = data[0];
+      }
+      if (data && typeof data === 'object') {
+        if (typeof data.output  === 'string') return data.output;
+        if (typeof data.text    === 'string') return data.text;
+        if (typeof data.message === 'string') return data.message;
+      }
+      if (typeof data === 'string') return data;
+      return JSON.stringify(data);
+    }
+
+    // ── Send message ──────────────────────────────
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      userInput.value = '';
+      userInput.disabled = true;
+      sendBtn.disabled   = true;
+
+      const thinkingEl = appendMessage('PROCESSING...', 'thinking');
+
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ chatInput: text }),
+        });
+
+        thinkingEl.remove();
+
+        if (!response.ok) {
+          appendMessage(`HTTP ${response.status} — ${response.statusText}`, 'error');
+          return;
+        }
+
+        const data    = await response.json();
+        const botText = parseN8nResponse(data);
+        appendMessage(botText, 'bot');
+
+      } catch (err) {
+        thinkingEl.remove();
+        appendMessage(`Connection failed — ${err.message}`, 'error');
+      } finally {
+        userInput.disabled = false;
+        sendBtn.disabled   = false;
+        userInput.focus();
+      }
+    }
+
+    // ── Input event listeners ─────────────────────
+    sendBtn.addEventListener('click', sendMessage);
+
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // ── Boot sequence ─────────────────────────────
+    startMatrix();
+    appendMessage('INITIALISING NEURAL LINK...', 'system');
+    setTimeout(() => appendMessage('CONNECTION ESTABLISHED', 'system'), 600);
+    setTimeout(() => appendMessage('READY. TYPE A MESSAGE TO BEGIN.', 'system'), 1200);
+    setTimeout(() => userInput.focus(), 1300);
+  </script>
+</body>
+</html>
